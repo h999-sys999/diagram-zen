@@ -40,11 +40,11 @@ export const NavHeader = () => {
 
           {/* Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="ghost" size="sm">
-              Sign In
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/auth">Sign In</a>
             </Button>
-            <Button className="btn-hero" size="sm">
-              Start Creating
+            <Button className="btn-hero" size="sm" asChild>
+              <a href="/auth">Start Creating</a>
             </Button>
           </div>
 
@@ -76,8 +76,12 @@ export const NavHeader = () => {
                   Docs
                 </a>
                 <div className="flex flex-col space-y-2 pt-4 border-t">
-                  <Button variant="ghost">Sign In</Button>
-                  <Button className="btn-hero">Start Creating</Button>
+                  <Button variant="ghost" asChild>
+                    <a href="/auth">Sign In</a>
+                  </Button>
+                  <Button className="btn-hero" asChild>
+                    <a href="/auth">Start Creating</a>
+                  </Button>
                 </div>
               </div>
             </SheetContent>

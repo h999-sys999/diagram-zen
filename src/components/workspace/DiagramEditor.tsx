@@ -1,0 +1,259 @@
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Save, Download, Eye, Code } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import mermaid from "mermaid";
+
+interface DiagramEditorProps {
+  userId: string;
+  selectedDiagramId: string | null;
+}
+
+interface DiagramData {
+  id: string;
+  title: string;
+  content: string;
+  diagram_type: string;
+}
+
+export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps) => {
+  const [diagram, setDiagram] = useState<DiagramData | null>(null);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [activeTab, setActiveTab] = useState("visual");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const mermaidRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Initialize Mermaid
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "default",
+      securityLevel: "loose",
+    });
+  }, []);
+
+  // Load diagram when selection changes
+  useEffect(() => {
+    if (selectedDiagramId) {
+      loadDiagram(selectedDiagramId);
+    } else {
+      setDiagram(null);
+      setTitle("");
+      setContent("");
+    }
+  }, [selectedDiagramId]);
+
+  // Render Mermaid diagram when content changes
+  useEffect(() => {
+    if (content && mermaidRef.current && activeTab === "visual") {
+      renderDiagram();
+    }
+  }, [content, activeTab]);
+
+  const loadDiagram = async (diagramId: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("diagrams")
+        .select("*")
+        .eq("id", diagramId)
+        .single();
+
+      if (error) throw error;
+
+      setDiagram(data);
+      setTitle(data.title);
+      setContent(data.content);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderDiagram = async () => {
+    if (!mermaidRef.current || !content) return;
+
+    try {
+      // Clear previous diagram
+      mermaidRef.current.innerHTML = "";
+      
+      // Create a unique ID for the diagram
+      const id = `mermaid-${Date.now()}`;
+      
+      // Render the diagram
+      const { svg } = await mermaid.render(id, content);
+      mermaidRef.current.innerHTML = svg;
+    } catch (error) {
+      console.error("Mermaid rendering error:", error);
+      mermaidRef.current.innerHTML = `
+        <div class="p-4 text-center text-destructive">
+          <p>Error rendering diagram</p>
+          <p class="text-sm text-muted-foreground mt-2">Check your Mermaid syntax</p>
+        </div>
+      `;
+    }
+  };
+
+  const saveDiagram = async () => {
+    if (!diagram) return;
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("diagrams")
+        .update({
+          title: title,
+          content: content,
+        })
+        .eq("id", diagram.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Diagram saved",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const downloadSVG = () => {
+    if (!mermaidRef.current) return;
+
+    const svg = mermaidRef.current.querySelector("svg");
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = svgUrl;
+    downloadLink.download = `${title || "diagram"}.svg`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(svgUrl);
+  };
+
+  if (!selectedDiagramId) {
+    return (
+      <div className="h-full flex items-center justify-center text-center p-8">
+        <div>
+          <div className="text-6xl mb-4">📊</div>
+          <h3 className="text-2xl font-semibold mb-2">Welcome to Mermaid Studio</h3>
+          <p className="text-muted-foreground">
+            Select a diagram from the sidebar or create a new one to get started.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Editor Header */}
+      <div className="border-b border-border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 mr-4">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Diagram title"
+              className="text-lg font-semibold border-none p-0 h-auto focus-visible:ring-0"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={downloadSVG}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export SVG
+            </Button>
+            <Button
+              onClick={saveDiagram}
+              disabled={isSaving}
+              className="btn-hero"
+              size="sm"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Editor Content */}
+      <div className="flex-1">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+          <div className="border-b border-border px-4">
+            <TabsList>
+              <TabsTrigger value="visual" className="flex items-center">
+                <Eye className="mr-2 h-4 w-4" />
+                Visual
+              </TabsTrigger>
+              <TabsTrigger value="code" className="flex items-center">
+                <Code className="mr-2 h-4 w-4" />
+                Code
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="visual" className="h-[calc(100%-60px)] m-0">
+            <div 
+              ref={mermaidRef}
+              className="h-full overflow-auto p-8 bg-card flex items-center justify-center"
+            >
+              {!content && (
+                <div className="text-center text-muted-foreground">
+                  <p>Switch to Code view to add your Mermaid diagram</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="code" className="h-[calc(100%-60px)] m-0">
+            <div className="h-full p-4">
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Enter your Mermaid diagram code here..."
+                className="h-full resize-none font-mono text-sm"
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
