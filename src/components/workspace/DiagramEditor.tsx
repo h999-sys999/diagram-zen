@@ -53,15 +53,14 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
     }
   }, [selectedDiagramId]);
 
-  // Render Mermaid diagram when content changes AND auto-switch to visual on paste
+  // Render Mermaid diagram when content changes on visual tab
   useEffect(() => {
-    if (content && mermaidRef.current) {
-      if (activeTab === "visual") {
+    if (content && activeTab === "visual") {
+      // Small delay to ensure ref is mounted
+      const timer = setTimeout(() => {
         renderDiagram();
-      } else if (content.length > 50) {
-        // Auto-switch to visual tab when significant code is added
-        setActiveTab("visual");
-      }
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [content, activeTab]);
 
@@ -274,16 +273,15 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
           </div>
 
           <TabsContent value="visual" className="h-[calc(100%-60px)] m-0">
-            <div 
-              ref={mermaidRef}
-              className="h-full overflow-auto p-8 bg-muted/20 flex items-center justify-center"
-            >
-              {!content && (
+            <div className="h-full overflow-auto p-8 bg-muted/20 flex items-center justify-center">
+              {!content ? (
                 <div className="text-center text-muted-foreground space-y-2">
                   <div className="text-4xl mb-4">📊</div>
                   <p className="font-semibold">No diagram yet</p>
                   <p className="text-sm">Switch to Code tab to start creating</p>
                 </div>
+              ) : (
+                <div ref={mermaidRef} className="w-full h-full flex items-center justify-center" />
               )}
             </div>
           </TabsContent>
