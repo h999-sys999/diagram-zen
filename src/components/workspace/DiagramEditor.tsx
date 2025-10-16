@@ -53,10 +53,15 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
     }
   }, [selectedDiagramId]);
 
-  // Render Mermaid diagram when content changes
+  // Render Mermaid diagram when content changes AND auto-switch to visual on paste
   useEffect(() => {
-    if (content && mermaidRef.current && activeTab === "visual") {
-      renderDiagram();
+    if (content && mermaidRef.current) {
+      if (activeTab === "visual") {
+        renderDiagram();
+      } else if (content.length > 50) {
+        // Auto-switch to visual tab when significant code is added
+        setActiveTab("visual");
+      }
     }
   }, [content, activeTab]);
 
@@ -262,23 +267,28 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
           <TabsContent value="visual" className="h-[calc(100%-60px)] m-0">
             <div 
               ref={mermaidRef}
-              className="h-full overflow-auto p-8 bg-card flex items-center justify-center"
+              className="h-full overflow-auto p-8 bg-muted/20 flex items-center justify-center"
             >
               {!content && (
-                <div className="text-center text-muted-foreground">
-                  <p>Switch to Code view to add your Mermaid diagram</p>
+                <div className="text-center text-muted-foreground space-y-2">
+                  <div className="text-4xl mb-4">📊</div>
+                  <p className="font-semibold">No diagram yet</p>
+                  <p className="text-sm">Switch to Code tab to start creating</p>
                 </div>
               )}
             </div>
           </TabsContent>
 
           <TabsContent value="code" className="h-[calc(100%-60px)] m-0">
-            <div className="h-full p-4">
+            <div className="h-full p-4 space-y-2">
+              <div className="text-xs text-muted-foreground bg-accent/10 p-2 rounded">
+                💡 Paste your code below. It will auto-preview in the Visual tab.
+              </div>
               <Textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Enter your Mermaid diagram code here...&#10;&#10;Examples:&#10;- graph TD (Flowchart)&#10;- sequenceDiagram (Sequence)&#10;- classDiagram (Class)&#10;- erDiagram (ER Diagram)&#10;- gantt (Gantt Chart)"
-                className="h-full resize-none font-mono text-sm bg-muted/30"
+                className="h-[calc(100%-3rem)] resize-none font-mono text-sm bg-muted/30 border-2 focus:border-primary"
               />
             </div>
           </TabsContent>
