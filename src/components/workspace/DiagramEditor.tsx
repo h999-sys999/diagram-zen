@@ -119,24 +119,33 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
   const renderDiagram = async () => {
     if (!mermaidRef.current || !content) return;
 
+    const currentRef = mermaidRef.current;
+
     try {
       // Clear previous diagram
-      mermaidRef.current.innerHTML = "";
+      currentRef.innerHTML = "";
       
       // Create a unique ID for the diagram
       const id = `mermaid-${Date.now()}`;
       
       // Render the diagram
       const { svg } = await mermaid.render(id, content);
-      mermaidRef.current.innerHTML = svg;
+      
+      // Check if ref is still valid after async operation
+      if (mermaidRef.current) {
+        mermaidRef.current.innerHTML = svg;
+      }
     } catch (error) {
       console.error("Mermaid rendering error:", error);
-      mermaidRef.current.innerHTML = `
-        <div class="p-4 text-center text-destructive">
-          <p>Error rendering diagram</p>
-          <p class="text-sm text-muted-foreground mt-2">Check your Mermaid syntax</p>
-        </div>
-      `;
+      // Check if ref is still valid before updating
+      if (mermaidRef.current) {
+        mermaidRef.current.innerHTML = `
+          <div class="p-4 text-center text-destructive">
+            <p>Error rendering diagram</p>
+            <p class="text-sm text-muted-foreground mt-2">Check your Mermaid syntax</p>
+          </div>
+        `;
+      }
     }
   };
 
