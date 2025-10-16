@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Download, Eye, Code } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import mermaid from "mermaid";
@@ -29,6 +30,9 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [zoom, setZoom] = useState(100);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [theme, setTheme] = useState("default");
   const mermaidRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
@@ -37,10 +41,10 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
   useEffect(() => {
     mermaid.initialize({
       startOnLoad: true,
-      theme: "default",
+      theme: theme as any,
       securityLevel: "loose",
     });
-  }, []);
+  }, [theme]);
 
   // Load diagram when selection changes
   useEffect(() => {
@@ -199,6 +203,54 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
     URL.revokeObjectURL(svgUrl);
   };
 
+  const downloadPNG = () => {
+    if (!mermaidRef.current) return;
+
+    const svg = mermaidRef.current.querySelector("svg");
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.width * 2;
+      canvas.height = img.height * 2;
+      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = url;
+        downloadLink.download = `${title || "diagram"}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(url);
+      });
+    };
+
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev + 10, 200));
+  };
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev - 10, 50));
+  };
+
+  const handleZoomReset = () => {
+    setZoom(100);
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
   if (!selectedDiagramId) {
     return (
       <div className="h-full flex items-center justify-center text-center p-8">
@@ -225,7 +277,7 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
     <div className="h-full flex flex-col">
       {/* Editor Header */}
       <div className="border-b border-border p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex-1 mr-4">
             <Input
               value={title}
@@ -235,13 +287,33 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
             />
           </div>
           <div className="flex items-center space-x-2">
+            <Select value={theme} onValueChange={setTheme}>
+              <SelectTrigger className="w-32">
+                <Palette className="mr-2 h-4 w-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="forest">Forest</SelectItem>
+                <SelectItem value="neutral">Neutral</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={downloadPNG}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              PNG
+            </Button>
             <Button
               onClick={downloadSVG}
               variant="outline"
               size="sm"
             >
               <Download className="mr-2 h-4 w-4" />
-              Export SVG
+              SVG
             </Button>
             <Button
               onClick={saveDiagram}
@@ -259,7 +331,7 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       {/* Editor Content */}
       <div className="flex-1">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-          <div className="border-b border-border px-4">
+          <div className="border-b border-border px-4 flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="visual" className="flex items-center">
                 <Eye className="mr-2 h-4 w-4" />
@@ -270,9 +342,26 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
                 Code
               </TabsTrigger>
             </TabsList>
+            
+            {activeTab === "visual" && (
+              <div className="flex items-center space-x-2">
+                <Button onClick={handleZoomOut} variant="ghost" size="sm">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button onClick={handleZoomReset} variant="ghost" size="sm" className="min-w-16">
+                  {zoom}%
+                </Button>
+                <Button onClick={handleZoomIn} variant="ghost" size="sm">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button onClick={toggleFullscreen} variant="ghost" size="sm">
+                  {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </Button>
+              </div>
+            )}
           </div>
 
-          <TabsContent value="visual" className="h-[calc(100%-60px)] m-0">
+          <TabsContent value="visual" className={`h-[calc(100%-60px)] m-0 ${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''}`}>
             <div className="h-full overflow-auto p-8 bg-muted/20 flex items-center justify-center">
               {!content ? (
                 <div className="text-center text-muted-foreground space-y-2">
@@ -281,7 +370,11 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
                   <p className="text-sm">Switch to Code tab to start creating</p>
                 </div>
               ) : (
-                <div ref={mermaidRef} className="w-full h-full flex items-center justify-center" />
+                <div 
+                  ref={mermaidRef} 
+                  className="w-full h-full flex items-center justify-center transition-transform duration-200" 
+                  style={{ transform: `scale(${zoom / 100})` }}
+                />
               )}
             </div>
           </TabsContent>
