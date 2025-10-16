@@ -28,7 +28,9 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
   const [activeTab, setActiveTab] = useState("visual");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const mermaidRef = useRef<HTMLDivElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
   // Initialize Mermaid
@@ -57,6 +59,32 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       renderDiagram();
     }
   }, [content, activeTab]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (hasUnsavedChanges && diagram) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      saveTimeoutRef.current = setTimeout(() => {
+        saveDiagram();
+      }, 2000); // Auto-save after 2 seconds of inactivity
+    }
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, title, content]);
+
+  // Track changes
+  useEffect(() => {
+    if (diagram && (title !== diagram.title || content !== diagram.content)) {
+      setHasUnsavedChanges(true);
+    }
+  }, [title, content, diagram]);
 
   const loadDiagram = async (diagramId: string) => {
     setIsLoading(true);
@@ -122,9 +150,11 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
 
       if (error) throw error;
 
+      setHasUnsavedChanges(false);
+      
       toast({
         title: "Success",
-        description: "Diagram saved",
+        description: "Diagram saved successfully",
       });
     } catch (error: any) {
       toast({
@@ -202,12 +232,12 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
             </Button>
             <Button
               onClick={saveDiagram}
-              disabled={isSaving}
+              disabled={isSaving || !hasUnsavedChanges}
               className="btn-hero"
               size="sm"
             >
               <Save className="mr-2 h-4 w-4" />
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? "Saving..." : hasUnsavedChanges ? "Save Changes" : "Saved"}
             </Button>
           </div>
         </div>
@@ -247,8 +277,8 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
               <Textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Enter your Mermaid diagram code here..."
-                className="h-full resize-none font-mono text-sm"
+                placeholder="Enter your Mermaid diagram code here...&#10;&#10;Examples:&#10;- graph TD (Flowchart)&#10;- sequenceDiagram (Sequence)&#10;- classDiagram (Class)&#10;- erDiagram (ER Diagram)&#10;- gantt (Gantt Chart)"
+                className="h-full resize-none font-mono text-sm bg-muted/30"
               />
             </div>
           </TabsContent>

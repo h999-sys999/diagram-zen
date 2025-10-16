@@ -2,9 +2,15 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, FileText, Trash2 } from "lucide-react";
+import { Plus, FileText, Trash2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Diagram {
   id: string;
@@ -49,16 +55,24 @@ export const DiagramsList = ({ userId, selectedDiagramId, onSelectDiagram }: Dia
     }
   };
 
-  const createNewDiagram = async () => {
+  const createNewDiagram = async (template?: string) => {
+    const templates = {
+      flowchart: "graph TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Action]\n    B -->|No| D[Alternative]\n    C --> E[End]\n    D --> E",
+      sequence: "sequenceDiagram\n    participant A as Alice\n    participant B as Bob\n    A->>B: Hello Bob!\n    B->>A: Hi Alice!",
+      class: "classDiagram\n    class Animal{\n        +String name\n        +int age\n        +makeSound()\n    }\n    class Dog{\n        +bark()\n    }\n    Animal <|-- Dog",
+      erDiagram: "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--|{ LINE-ITEM : contains\n    CUSTOMER }|..|{ DELIVERY-ADDRESS : uses",
+      gantt: "gantt\n    title Project Timeline\n    dateFormat YYYY-MM-DD\n    section Phase 1\n    Task 1 :a1, 2024-01-01, 30d\n    Task 2 :after a1, 20d",
+    };
+
     try {
       const { data, error } = await supabase
         .from("diagrams")
         .insert([
           {
             user_id: userId,
-            title: "New Diagram",
-            content: "graph TD\n    A[Start] --> B[End]",
-            diagram_type: "flowchart",
+            title: `New ${template || 'Flowchart'}`,
+            content: templates[template as keyof typeof templates] || templates.flowchart,
+            diagram_type: template || "flowchart",
           },
         ])
         .select()
@@ -124,14 +138,33 @@ export const DiagramsList = ({ userId, selectedDiagramId, onSelectDiagram }: Dia
 
   return (
     <div className="h-full border-r border-border flex flex-col">
-      <div className="p-4 border-b border-border">
-        <Button 
-          onClick={createNewDiagram}
-          className="btn-hero w-full"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Diagram
-        </Button>
+      <div className="p-4 border-b border-border space-y-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="btn-hero w-full">
+              <Plus className="mr-2 h-4 w-4" />
+              New Diagram
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuItem onClick={() => createNewDiagram("flowchart")}>
+              Flowchart
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => createNewDiagram("sequence")}>
+              Sequence Diagram
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => createNewDiagram("class")}>
+              Class Diagram
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => createNewDiagram("erDiagram")}>
+              ER Diagram
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => createNewDiagram("gantt")}>
+              Gantt Chart
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <ScrollArea className="flex-1 p-4">
