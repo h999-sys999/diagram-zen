@@ -5,7 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette, AlertCircle, CheckCircle2, Lightbulb } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import mermaid from "mermaid";
@@ -33,6 +35,9 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState("default");
+  const [syntaxError, setSyntaxError] = useState<string | null>(null);
+  const [hasConflict, setHasConflict] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState("");
   const mermaidRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
@@ -54,6 +59,8 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       setDiagram(null);
       setTitle("");
       setContent("");
+      setLastSavedContent("");
+      setSyntaxError(null);
     }
   }, [selectedDiagramId]);
 
@@ -108,6 +115,9 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       setDiagram(data);
       setTitle(data.title);
       setContent(data.content);
+      setLastSavedContent(data.content);
+      setHasConflict(false);
+      setSyntaxError(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -137,15 +147,19 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       // Check if ref is still valid after async operation
       if (mermaidRef.current) {
         mermaidRef.current.innerHTML = svg;
+        setSyntaxError(null);
       }
-    } catch (error) {
+    } catch (error: any) {
+      const errorMsg = error?.message || "Invalid Mermaid syntax";
+      setSyntaxError(errorMsg);
       console.error("Mermaid rendering error:", error);
       // Check if ref is still valid before updating
       if (mermaidRef.current) {
         mermaidRef.current.innerHTML = `
           <div class="p-4 text-center text-destructive">
-            <p>Error rendering diagram</p>
-            <p class="text-sm text-muted-foreground mt-2">Check your Mermaid syntax</p>
+            <AlertCircle className="h-12 w-12 mx-auto mb-2" />
+            <p class="font-semibold">Syntax Error</p>
+            <p class="text-sm text-muted-foreground mt-2">${errorMsg}</p>
           </div>
         `;
       }
@@ -157,6 +171,27 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
 
     setIsSaving(true);
     try {
+      // Check for conflicts before saving
+      const { data: latestData, error: fetchError } = await supabase
+        .from("diagrams")
+        .select("content, updated_at")
+        .eq("id", diagram.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Detect conflict if content changed since last load
+      if (latestData.content !== lastSavedContent && lastSavedContent !== "") {
+        setHasConflict(true);
+        toast({
+          title: "Conflict Detected",
+          description: "This diagram was modified elsewhere. Please review before saving.",
+          variant: "destructive",
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const { error } = await supabase
         .from("diagrams")
         .update({
@@ -168,6 +203,8 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       if (error) throw error;
 
       setHasUnsavedChanges(false);
+      setLastSavedContent(content);
+      setHasConflict(false);
       
       toast({
         title: "Success",
@@ -273,6 +310,14 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
     );
   }
 
+  const syntaxHelp = {
+    flowchart: "Start with: graph TD or graph LR\nNodes: A[Label]\nEdges: A --> B",
+    sequence: "Start with: sequenceDiagram\nparticipant A\nA->>B: Message",
+    class: "Start with: classDiagram\nclass Name{\n  +attribute\n  +method()\n}",
+    erDiagram: "Start with: erDiagram\nENTITY ||--o{ OTHER : relationship",
+    gantt: "Start with: gantt\ntitle Title\nsection Section\nTask :dates"
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Editor Header */}
@@ -287,6 +332,33 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
             />
           </div>
           <div className="flex items-center space-x-2">
+            {syntaxError && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Syntax Error
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">{syntaxError}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {!syntaxError && content && (
+              <Badge variant="outline" className="gap-1">
+                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                Valid
+              </Badge>
+            )}
+            {hasConflict && (
+              <Badge variant="destructive" className="gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Conflict
+              </Badge>
+            )}
             <Select value={theme} onValueChange={setTheme}>
               <SelectTrigger className="w-32">
                 <Palette className="mr-2 h-4 w-4" />
@@ -381,14 +453,20 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
 
           <TabsContent value="code" className="h-[calc(100%-60px)] m-0">
             <div className="h-full p-4 space-y-2">
-              <div className="text-xs text-muted-foreground bg-accent/10 p-2 rounded">
-                💡 Paste your code below. It will auto-preview in the Visual tab.
+              <div className="flex items-start gap-2 text-xs bg-accent/10 p-3 rounded">
+                <Lightbulb className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">Quick Help</p>
+                  <pre className="text-muted-foreground whitespace-pre-wrap">
+                    {syntaxHelp[diagram?.diagram_type as keyof typeof syntaxHelp] || syntaxHelp.flowchart}
+                  </pre>
+                </div>
               </div>
               <Textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Enter your Mermaid diagram code here...&#10;&#10;Examples:&#10;- graph TD (Flowchart)&#10;- sequenceDiagram (Sequence)&#10;- classDiagram (Class)&#10;- erDiagram (ER Diagram)&#10;- gantt (Gantt Chart)"
-                className="h-[calc(100%-3rem)] resize-none font-mono text-sm bg-muted/30 border-2 focus:border-primary"
+                className="h-[calc(100%-7rem)] resize-none font-mono text-sm bg-muted/30 border-2 focus:border-primary"
               />
             </div>
           </TabsContent>

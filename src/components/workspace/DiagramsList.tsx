@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, FileText, Trash2, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, FileText, Trash2, ChevronDown, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -29,6 +30,7 @@ interface DiagramsListProps {
 export const DiagramsList = ({ userId, selectedDiagramId, onSelectDiagram }: DiagramsListProps) => {
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -136,6 +138,11 @@ export const DiagramsList = ({ userId, selectedDiagramId, onSelectDiagram }: Dia
     );
   }
 
+  const filteredDiagrams = diagrams.filter(diagram => 
+    diagram.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    diagram.diagram_type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="h-full border-r border-border flex flex-col">
       <div className="p-4 border-b border-border space-y-2">
@@ -165,11 +172,21 @@ export const DiagramsList = ({ userId, selectedDiagramId, onSelectDiagram }: Dia
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search diagrams..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-2">
-          {diagrams.length === 0 ? (
+          {filteredDiagrams.length === 0 && diagrams.length === 0 ? (
             <Card className="card-elevated">
               <CardContent className="p-6 text-center">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -178,8 +195,17 @@ export const DiagramsList = ({ userId, selectedDiagramId, onSelectDiagram }: Dia
                 </p>
               </CardContent>
             </Card>
+          ) : filteredDiagrams.length === 0 ? (
+            <Card className="card-elevated">
+              <CardContent className="p-6 text-center">
+                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No diagrams match your search.
+                </p>
+              </CardContent>
+            </Card>
           ) : (
-            diagrams.map((diagram) => (
+            filteredDiagrams.map((diagram) => (
               <Card
                 key={diagram.id}
                 className={`card-elevated cursor-pointer transition-all hover:shadow-md ${
