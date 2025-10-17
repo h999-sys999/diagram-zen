@@ -7,10 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette, AlertCircle, CheckCircle2, Lightbulb } from "lucide-react";
+import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette, AlertCircle, CheckCircle2, Lightbulb, Grip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import mermaid from "mermaid";
+import { VisualCanvas } from "./VisualCanvas";
+import { RealtimePresence } from "./RealtimePresence";
 
 interface DiagramEditorProps {
   userId: string;
@@ -38,9 +40,19 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
   const [syntaxError, setSyntaxError] = useState<string | null>(null);
   const [hasConflict, setHasConflict] = useState(false);
   const [lastSavedContent, setLastSavedContent] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const mermaidRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
+
+  // Get user email for presence
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) {
+        setUserEmail(data.user.email);
+      }
+    });
+  }, []);
 
   // Initialize Mermaid
   useEffect(() => {
@@ -63,6 +75,41 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
       setSyntaxError(null);
     }
   }, [selectedDiagramId]);
+
+  // Real-time updates
+  useEffect(() => {
+    if (!selectedDiagramId) return;
+
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'diagrams',
+          filter: `id=eq.${selectedDiagramId}`
+        },
+        (payload) => {
+          const newData = payload.new as DiagramData;
+          // Only update if not currently editing
+          if (!hasUnsavedChanges && newData.content !== content) {
+            setContent(newData.content);
+            setTitle(newData.title);
+            setLastSavedContent(newData.content);
+            toast({
+              title: "Diagram updated",
+              description: "Changes from another user applied",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedDiagramId, hasUnsavedChanges, content]);
 
   // Render Mermaid diagram when content changes on visual tab
   useEffect(() => {
@@ -332,6 +379,13 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
             />
           </div>
           <div className="flex items-center space-x-2">
+            {selectedDiagramId && userEmail && (
+              <RealtimePresence 
+                diagramId={selectedDiagramId}
+                userId={userId}
+                userEmail={userEmail}
+              />
+            )}
             {syntaxError && (
               <TooltipProvider>
                 <Tooltip>
@@ -407,7 +461,11 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
             <TabsList>
               <TabsTrigger value="visual" className="flex items-center">
                 <Eye className="mr-2 h-4 w-4" />
-                Visual
+                Visual Preview
+              </TabsTrigger>
+              <TabsTrigger value="canvas" className="flex items-center">
+                <Grip className="mr-2 h-4 w-4" />
+                Visual Editor
               </TabsTrigger>
               <TabsTrigger value="code" className="flex items-center">
                 <Code className="mr-2 h-4 w-4" />
@@ -448,6 +506,16 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
                   style={{ transform: `scale(${zoom / 100})` }}
                 />
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="canvas" className="h-[calc(100%-60px)] m-0">
+            <div className="h-full bg-muted/10">
+              <VisualCanvas
+                mermaidCode={content}
+                onCodeChange={setContent}
+                diagramType={diagram?.diagram_type || 'flowchart'}
+              />
             </div>
           </TabsContent>
 
