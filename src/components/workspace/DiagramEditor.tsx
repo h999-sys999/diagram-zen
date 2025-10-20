@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette, AlertCircle, CheckCircle2, Lightbulb, Grip } from "lucide-react";
+import { Save, Download, Eye, Code, ZoomIn, ZoomOut, Maximize2, Minimize2, Palette, AlertCircle, CheckCircle2, Lightbulb, Grip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import mermaid from "mermaid";
@@ -54,12 +54,20 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
     });
   }, []);
 
-  // Initialize Mermaid
+  // Initialize Mermaid with theme
   useEffect(() => {
     mermaid.initialize({
       startOnLoad: true,
       theme: theme as any,
       securityLevel: "loose",
+      themeVariables: {
+        primaryColor: '#3b82f6',
+        primaryTextColor: '#fff',
+        primaryBorderColor: '#2563eb',
+        lineColor: '#6366f1',
+        secondaryColor: '#8b5cf6',
+        tertiaryColor: '#ec4899',
+      }
     });
   }, [theme]);
 
@@ -492,6 +500,16 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
           </div>
 
           <TabsContent value="visual" className={`h-[calc(100%-60px)] m-0 ${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''}`}>
+            {isFullscreen && (
+              <Button
+                onClick={toggleFullscreen}
+                variant="outline"
+                size="icon"
+                className="absolute top-4 right-4 z-50"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
             <div className="h-full overflow-auto p-8 bg-muted/20 flex items-center justify-center">
               {!content ? (
                 <div className="text-center text-muted-foreground space-y-2">
