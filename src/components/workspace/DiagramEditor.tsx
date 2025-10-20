@@ -56,19 +56,68 @@ export const DiagramEditor = ({ userId, selectedDiagramId }: DiagramEditorProps)
 
   // Initialize Mermaid with theme
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: theme as any,
-      securityLevel: "loose",
-      themeVariables: {
+    const themeVariables = {
+      default: {
         primaryColor: '#3b82f6',
-        primaryTextColor: '#fff',
+        primaryTextColor: '#ffffff',
         primaryBorderColor: '#2563eb',
         lineColor: '#6366f1',
         secondaryColor: '#8b5cf6',
         tertiaryColor: '#ec4899',
+        background: '#ffffff',
+        mainBkg: '#3b82f6',
+        secondBkg: '#8b5cf6',
+        tertiaryBkg: '#ec4899',
+      },
+      dark: {
+        primaryColor: '#60a5fa',
+        primaryTextColor: '#1e293b',
+        primaryBorderColor: '#3b82f6',
+        lineColor: '#818cf8',
+        secondaryColor: '#a78bfa',
+        tertiaryColor: '#f472b6',
+        background: '#1e293b',
+        mainBkg: '#60a5fa',
+        secondBkg: '#a78bfa',
+        tertiaryBkg: '#f472b6',
+      },
+      forest: {
+        primaryColor: '#10b981',
+        primaryTextColor: '#ffffff',
+        primaryBorderColor: '#059669',
+        lineColor: '#34d399',
+        secondaryColor: '#3b82f6',
+        tertiaryColor: '#8b5cf6',
+        background: '#ecfdf5',
+        mainBkg: '#10b981',
+        secondBkg: '#3b82f6',
+        tertiaryBkg: '#8b5cf6',
+      },
+      neutral: {
+        primaryColor: '#64748b',
+        primaryTextColor: '#ffffff',
+        primaryBorderColor: '#475569',
+        lineColor: '#94a3b8',
+        secondaryColor: '#64748b',
+        tertiaryColor: '#475569',
+        background: '#f8fafc',
+        mainBkg: '#64748b',
+        secondBkg: '#94a3b8',
+        tertiaryBkg: '#cbd5e1',
       }
+    };
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: theme as any,
+      securityLevel: "loose",
+      themeVariables: themeVariables[theme as keyof typeof themeVariables] || themeVariables.default,
     });
+    
+    // Force re-render
+    if (content && activeTab === "visual") {
+      renderDiagram();
+    }
   }, [theme]);
 
   // Load diagram when selection changes
