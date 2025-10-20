@@ -22,12 +22,16 @@ export const mermaidToFlow = (mermaidCode: string, diagramType: string): FlowDat
     
     // Parse flowchart nodes and edges
     if (diagramType === 'flowchart' || trimmed.startsWith('graph')) {
-      // Match patterns like: A[Label] --> B[Another]
-      const nodePattern = /([A-Za-z0-9_]+)\[([^\]]+)\]/g;
+      // Match all node patterns with different shapes
+      const rectanglePattern = /([A-Za-z0-9_]+)\[([^\]]+)\]/g;
+      const roundedPattern = /([A-Za-z0-9_]+)\(([^)]+)\)/g;
+      const circlePattern = /([A-Za-z0-9_]+)\(\(([^)]+)\)\)/g;
+      const diamondPattern = /([A-Za-z0-9_]+)\{([^}]+)\}/g;
       const edgePattern = /([A-Za-z0-9_]+)\s*(-->|---)\s*([A-Za-z0-9_]+)/;
       
+      // Parse diamond nodes
       let match;
-      while ((match = nodePattern.exec(trimmed)) !== null) {
+      while ((match = diamondPattern.exec(trimmed)) !== null) {
         const [, id, label] = match;
         if (!nodeMap.has(id)) {
           nodeMap.set(id, label);
@@ -38,9 +42,62 @@ export const mermaidToFlow = (mermaidCode: string, diagramType: string): FlowDat
               x: (nodes.length % 3) * 250, 
               y: yOffset 
             },
-            data: { label },
+            data: { label, shape: 'diamond' },
           });
-          
+          if (nodes.length % 3 === 0) yOffset += 100;
+        }
+      }
+      
+      // Parse circle nodes
+      while ((match = circlePattern.exec(trimmed)) !== null) {
+        const [, id, label] = match;
+        if (!nodeMap.has(id)) {
+          nodeMap.set(id, label);
+          nodes.push({
+            id,
+            type: 'custom',
+            position: { 
+              x: (nodes.length % 3) * 250, 
+              y: yOffset 
+            },
+            data: { label, shape: 'circle' },
+          });
+          if (nodes.length % 3 === 0) yOffset += 100;
+        }
+      }
+      
+      // Parse rounded nodes
+      while ((match = roundedPattern.exec(trimmed)) !== null) {
+        const [, id, label] = match;
+        if (!nodeMap.has(id)) {
+          nodeMap.set(id, label);
+          nodes.push({
+            id,
+            type: 'custom',
+            position: { 
+              x: (nodes.length % 3) * 250, 
+              y: yOffset 
+            },
+            data: { label, shape: 'rounded' },
+          });
+          if (nodes.length % 3 === 0) yOffset += 100;
+        }
+      }
+      
+      // Parse rectangle nodes
+      while ((match = rectanglePattern.exec(trimmed)) !== null) {
+        const [, id, label] = match;
+        if (!nodeMap.has(id)) {
+          nodeMap.set(id, label);
+          nodes.push({
+            id,
+            type: 'custom',
+            position: { 
+              x: (nodes.length % 3) * 250, 
+              y: yOffset 
+            },
+            data: { label, shape: 'default' },
+          });
           if (nodes.length % 3 === 0) yOffset += 100;
         }
       }
@@ -53,6 +110,7 @@ export const mermaidToFlow = (mermaidCode: string, diagramType: string): FlowDat
           source,
           target,
           type: 'smoothstep',
+          animated: true,
         });
       }
     }
@@ -109,11 +167,29 @@ export const flowToMermaid = (nodes: Node[], edges: Edge[], diagramType: string)
   if (diagramType === 'flowchart') {
     mermaid = 'graph TD\n';
     
+    // Add all nodes with their shapes
     nodes.forEach(node => {
       const label = node.data.label || node.id;
-      mermaid += `  ${node.id}[${label}]\n`;
+      const shape = node.data.shape || 'default';
+      
+      let nodeStr = '';
+      switch (shape) {
+        case 'rounded':
+          nodeStr = `  ${node.id}(${label})\n`;
+          break;
+        case 'circle':
+          nodeStr = `  ${node.id}((${label}))\n`;
+          break;
+        case 'diamond':
+          nodeStr = `  ${node.id}{${label}}\n`;
+          break;
+        default:
+          nodeStr = `  ${node.id}[${label}]\n`;
+      }
+      mermaid += nodeStr;
     });
     
+    // Add all edges
     edges.forEach(edge => {
       const label = edge.label ? `|${edge.label}|` : '';
       mermaid += `  ${edge.source} -->${label} ${edge.target}\n`;

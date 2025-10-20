@@ -73,14 +73,16 @@ export const VisualCanvas = ({ mermaidCode, onCodeChange, diagramType }: VisualC
 
   const onConnect = useCallback(
     (params: Connection) => {
-      setEdges((eds) => addEdge(params, eds));
-      syncToMermaid();
+      const newEdge = { ...params, type: 'smoothstep', animated: true };
+      setEdges((eds) => addEdge(newEdge, eds));
+      // Small delay to ensure state is updated
+      setTimeout(() => syncToMermaid(), 50);
     },
     [setEdges, syncToMermaid]
   );
 
   const onNodeDragStop = useCallback(() => {
-    syncToMermaid();
+    setTimeout(() => syncToMermaid(), 50);
   }, [syncToMermaid]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -99,7 +101,7 @@ export const VisualCanvas = ({ mermaidCode, onCodeChange, diagramType }: VisualC
           : n
       )
     );
-    syncToMermaid();
+    setTimeout(() => syncToMermaid(), 50);
   }, [selectedNode, nodeLabel, nodeShape, setNodes, syncToMermaid]);
 
   const deleteSelectedNode = useCallback(() => {
@@ -108,18 +110,18 @@ export const VisualCanvas = ({ mermaidCode, onCodeChange, diagramType }: VisualC
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
     setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
     setSelectedNode(null);
-    syncToMermaid();
+    setTimeout(() => syncToMermaid(), 50);
   }, [selectedNode, setNodes, setEdges, syncToMermaid]);
 
   const handleAddNode = () => {
     const newNode: Node = {
-      id: `node-${Date.now()}`,
+      id: `node_${Date.now()}`,
       type: 'custom',
       position: { x: Math.random() * 400, y: Math.random() * 400 },
-      data: { label: 'New Node' },
+      data: { label: 'New Node', shape: 'default' },
     };
     setNodes((nds) => [...nds, newNode]);
-    syncToMermaid();
+    setTimeout(() => syncToMermaid(), 50);
   };
 
   const handleFitView = () => {
